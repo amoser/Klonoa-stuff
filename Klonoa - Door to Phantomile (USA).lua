@@ -1,3 +1,10 @@
+-- TODO
+-- Figure out plane structure
+-- Locate enemies (and find onscreen position after GTE transformation)
+-- Figure out models (recalling that setting '7's to other values appeard to modify seventh vertex)
+
+
+
 -- Const locations of various game-relevant information
 
 visionAddr = 0x1FFDB0
@@ -21,8 +28,8 @@ cameraAddr2 = 0x10F6B8
 
 fallDeathTimeAddr = 0x0BEB3C
 
-planePtrAddr = 0x0BF012
 planeXposAddr = 0x0BF020
+planePtrAddr = 0x0BF024
 planeSegmentAddr = 0x0BF028
 
 
@@ -208,7 +215,8 @@ function readValuesFromMemory()
 	iFrames = memory.read_s16_le(iFramesAddr)
 	ledgePhysics = memory.read_s16_le(ledgePhysicsAddr)
 	
-	planePtr = memory.read_s32_le(planePtrAddr)
+	planePtr = string.format("%x", memory.read_s32_le(planePtrAddr))
+	-- planePtr = memory.read_s32_le(planePtrAddr)
 	planeSegment = memory.read_s32_le(planeSegmentAddr)
 	planeX = memory.read_s32_le(planeXposAddr)
 end
@@ -376,7 +384,7 @@ function registerCallbacks()
 	stonesCallback = event.onmemorywrite(wroteStones, 0x80000000 + stonesAddr)
 	planeCallback = event.onmemorywrite(wrotePlane, 0x80000000 + planePtrAddr)
 	livesCallback = event.onmemorywrite(wroteLives, 0x80000000 + livesAddr)
-	healthCallback = event.onmemorywrite(wroteHealth, 0x80000000 + healthAddr)
+	-- healthCallback = event.onmemorywrite(wroteHealth, 0x80000000 + healthAddr)
 	planeSegmentCallback = event.onmemorywrite(wrotePlaneSegment, 0x80000000 + planeSegmentAddr)
 	callBacksEnabled = true
 end
@@ -386,7 +394,7 @@ function unregisterCallbacks()
 	event.unregisterbyid(stonesCallback)
 	event.unregisterbyid(planeCallback)
 	event.unregisterbyid(livesCallback)
-	event.unregisterbyid(healthCallback)
+	-- event.unregisterbyid(healthCallback)
 	event.unregisterbyid(planeSegmentCallback)
 	callBacksEnabled = false
 end
@@ -564,7 +572,7 @@ while true do
 		
 		-- Note: broken into two drawTexts to avoid distracting twitchy font kerning as numbers change
 		gui.drawText(hudX, hudY, "Plane pointer: ", defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
-		gui.drawText(hudX + 75, hudY, 	planePtrAddr, defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
+		gui.drawText(hudX + 75, hudY, planePtr, defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
 		
 		hudY = hudY + hudFontSize - 1
 		
