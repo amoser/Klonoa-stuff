@@ -1,3 +1,5 @@
+-- Const locations of various game-relevant information
+
 visionAddr = 0x1FFDB0
 
 klonoaStateAddr = 0x10B910
@@ -8,11 +10,22 @@ livesAddr = 0x10E5CA
 healthAddr = 0x10E5D0
 stonesAddr = 0x10E5CC
 
+-- These are both two bytes each
+iFramesAddr = 0x0BF074
+ledgePhysicsAddr = 0x0BF076
+
+-- These aren't really sufficient as the "camera" position is affected by many other things as well
+-- One example is that they don't have any effect on fixed camera angles used when klonoa is near doors
 cameraAddr1 = 0x10F6C0
 cameraAddr2 = 0x10F6B8
 
-iFramesAddr = 0x0BF074
 fallDeathTimeAddr = 0x0BEB3C
+
+planePtrAddr = 0x0BF012
+planeXposAddr = 0x0BF020
+planeSegmentAddr = 0x0BF028
+
+
 
 -- Tables for interpreting various raw memory values
 
@@ -47,7 +60,6 @@ states[101058088] = "Double jump" -- 0x6060628
 states[438839593] = "Taking damage" -- 0x1A282929
 states[1128481603] = "---" -- 0x43434343
 
-
 enemyTypes = {}
 enemyTypes[0] = "Moo"
 enemyTypes[1] = "Moo"
@@ -67,19 +79,29 @@ enemyTypes[23] = "Pink shooty guy"
 split = "Waiting to start..."
 klonoaState = states[0]
 
+
+
+-- Variables for storing/interacting with game state, along with user-controlled info specific to this tool
+
+-- Holds previous instruction executed so it can be logged/displayed when state changes
+instructionPointer = -1
+
+-- Klonoa position
+-- Note: X value is relative to current plane segment
 klonoaY = -1
 klonoaX = -1
 lastKlonoaY = -1
 lastKlonoaX = -1
 frozenPosition = false
 
+-- Camera "position"
+-- Note: Not complete at all!
 cam1 = 0
 cam2 = 0
 cam3 = 0
 lastCam1 = 0
 lastCam2 = 0
 lastCam3 = 0
-
 
 health = 6
 frozenHealth = false
@@ -95,6 +117,10 @@ frozenStones = false
 stonesChanged = false
 
 iFrames = 0
+ledgePhysics = 0
+
+planePtr = 0
+planeSegment = 0
 
 lastInput = input.get()
 lastMouseX = input.getmouse()["X"]
@@ -106,6 +132,12 @@ dragStartX = mouseX
 dragStartY = mouseY
 
 manualCam = false
+
+inGameHUD = false
+
+invincible = false
+
+noKillPlanes = false
 
 
 
@@ -126,65 +158,10 @@ function setStones(newStones)
 	stonesChanged = true
 end
 
-
-
--- UI
-
-forms.destroyall()
-
-mainWindow = forms.newform(650, 515, "Very Unfinished Klonoa Debug Tool")
-
-manualCamCheckbox = forms.checkbox(mainWindow, "Manual Camera", 0, 0)
-
-freezePositionCheckbox = forms.checkbox(mainWindow, "Freeze Position", 0, 30)
-
--- TODO enemy scan button
-trackEnemiesCheckbox = forms.checkbox(mainWindow, "Track Enemies", 0, 30)
-
--- TODO implement real freezing instead of only resetting between frames
-healthDropdown = forms.dropdown(mainWindow, {"1", "2", "3", "4", "5", "6"}, 60, 60, 30, 10)
-healthButton = forms.button(mainWindow, "Apply Health", function() return setHealth(tonumber(forms.gettext(healthDropdown))) end, 90, 60, 90, 20)
-healthFreezeCheckbox = forms.checkbox(mainWindow, "Freeze Health", 190, 60)
-healthLabel = forms.label(mainWindow, "Health: ", 0, 60, 60, 20)
-
-livesTextbox = forms.textbox(mainWindow, "3", 20, 20, "", 60, 90)
-livesButton = forms.button(mainWindow, "Apply Lives", function() return setLives(tonumber(forms.gettext(livesTextbox))) end, 80, 90, 100, 20)
-livesFreezeCheckbox = forms.checkbox(mainWindow, "Freeze Lives", 190, 90)
-livesLabel = forms.label(mainWindow, "Lives: ", 0, 90, 60, 20)
-
-stonesTextbox = forms.textbox(mainWindow, "3", 20, 20, "", 60, 120)
-stonesButton = forms.button(mainWindow, "Apply Stones", function() return setStones(tonumber(forms.gettext(stonesTextbox))) end, 80, 120, 100, 20)
-stonesFreezeCheckbox = forms.checkbox(mainWindow, "Freeze Stones", 190, 120)
-stonesLabel = forms.label(mainWindow, "Stones: ", 0, 120, 60, 20)
-
-customAddressTextbox = forms.textbox(mainWindow, "custom", 100, 20, "", 60, 150)
-
-bgCanvas = forms.pictureBox(mainWindow, 0, 0, 640, 480)
-forms.drawImage(bgCanvas, "img/uibg2.png", 0, 0, 640, 480)
-
-displayStatus = forms.pictureBox(bgCanvas, 0, 0, 640, 480)
-
---forms.setDefaultBackgroundColor(displayStatus, "gray")
-forms.setDefaultTextBackground(displayStatus, "transparent")
-forms.setDefaultForegroundColor(displayStatus, 0xFF380000)
-defaultTextColor = 0xFF380000
-
-
-
--- Main logic
-
-while true do
-	-- forms.clear(displayStatus, 0xFFF8E8A8)
-	forms.clear(displayStatus, "transparent")
-	--forms.clear(bgCanvas, 0xFFF8E8A8)
-	forms.drawImage(bgCanvas, "img/uibg2.png", 0, 0)
+function readValuesFromMemory()
+	-- Instruction pointer
+	instructionPointer = string.format("%x", emu.getregister("pc"))
 	
-	-- TODO display address, values for current plane segment
-	
-	--"NOTE: clicking the '?' button will make my comments/explanation appear in the Lua Console's \"output\" pane. Info may be incomplete or incorrect."
-	-- TODO check if dynamically allocated addresses only change between visions (e.g. when memory is reset/loaded from disc)
-	-- TODO lives/stones glitch seems to be related to playing the animation
-
 	-- Splits
 	-- "visionCounter" contains the game's current Vision (more or less...)
 	-- Notes:
@@ -195,12 +172,11 @@ while true do
 	-- TODO given above, need to detect when screen fades to black between visions to get correct splits
 	if not (vision[tonumber(visionCounter)] == nil) then
 		split = vision[tonumber(visionCounter)]
-	else
-		split = "UKNOWN VALUE (" .. visionCounter .. ")"
+	-- else
+		-- split = "UNKNOWN VALUE (" .. visionCounter .. ")"
 	end
 	
 	-- Camera
-	--cam1 = memory.read_s32_le(klonoaYAddr)
 	cam2 = memory.read_s32_le(cameraAddr1)
 	cam3 = memory.read_s32_le(cameraAddr2)
 	
@@ -219,7 +195,7 @@ while true do
 	if not (states[tonumber(klonoaInternalState)] == nil) then
 		klonoaState = states[tonumber(klonoaInternalState)]
 	else
-		klonoaState = "UKNOWN VALUE (" .. klonoaInternalState .. ")"
+		klonoaState = "UNKNOWN VALUE (" .. klonoaInternalState .. ")"
 	end
 	
 	local cutsceneState = ""
@@ -229,16 +205,235 @@ while true do
 		cutsceneState = "In cutscene? " .. tonumber(visionCounter)
 	end
 		
-	iFrames = memory.read_s32_le(iFramesAddr)
+	iFrames = memory.read_s16_le(iFramesAddr)
+	ledgePhysics = memory.read_s16_le(ledgePhysicsAddr)
+	
+	planePtr = memory.read_s32_le(planePtrAddr)
+	planeSegment = memory.read_s32_le(planeSegmentAddr)
+	planeX = memory.read_s32_le(planeXposAddr)
+end
+
+
+
+-- UI
+
+forms.destroyall()
+
+mainWindow = forms.newform(650, 515, "Very Unfinished Klonoa Debug Tool")
+
+-- Global offsets to make it easier to "stack" UI elements relative to each other
+controlPosX = 60
+controlPosY = 40
+
+-- Note: dropdown options get sorted alphabetically regardless of what order they're listed in, hence the inclusion of useless numbers for the options
+mouseDropdown = forms.dropdown(mainWindow, {"---------- Click+Drag Action ----------", "0. Do nothing", "1. Move Klonoa (buggy)", "2. Adjust Camera (buggy/incompete)"}, controlPosX, controlPosY, 180, 10)
+controlPosX = controlPosX + 190
+manualCamCheckbox = forms.checkbox(mainWindow, "Lock Camera", controlPosX, controlPosY)
+controlPosX = controlPosX + 110
+LockPositionCheckbox = forms.checkbox(mainWindow, "Lock Position", controlPosX, controlPosY)
+
+controlPosX = 0
+controlPosY = controlPosY + 40
+
+-- TODO enemy scan button
+--trackEnemiesCheckbox = forms.checkbox(mainWindow, "Track Enemies", 0, 30)
+
+-- TODO implement real freezing where appropriate instead of only resetting between frames
+healthDropdown = forms.dropdown(mainWindow, {"1", "2", "3", "4", "5", "6"}, 120, controlPosY, 30, 10)
+healthButton = forms.button(mainWindow, "Apply Health", function() return setHealth(tonumber(forms.gettext(healthDropdown))) end, 150, controlPosY, 90, 20)
+-- healthLockCheckbox = forms.pictureBox(mainWindow, 250, controlPosY, 25, 25)
+-- forms.drawText(healthLockCheckbox, 0, 0, "######")
+-- forms.drawText(healthLockCheckbox, 0, 0, "######", "red", null, 12, "Times New Roman", hudFontStyle)
+healthLockCheckbox = forms.checkbox(mainWindow, "Lock Health", 250, controlPosY)
+
+controlPosX = 0
+controlPosY = controlPosY + 30
+
+livesTextbox = forms.textbox(mainWindow, "3", 20, 20, "", 120, controlPosY)
+livesButton = forms.button(mainWindow, "Apply Lives", function() return setLives(tonumber(forms.gettext(livesTextbox))) end, 140, controlPosY, 100, 20)
+-- livesLockCheckbox = forms.pictureBox(mainWindow, 250, controlPosY, 25, 25)
+livesLockCheckbox = forms.checkbox(mainWindow, "Lock Lives", 250, controlPosY)
+
+controlPosX = 0
+controlPosY = controlPosY + 30
+
+stonesTextbox = forms.textbox(mainWindow, "3", 20, 20, "", 120, controlPosY)
+stonesButton = forms.button(mainWindow, "Apply Stones", function() return setStones(tonumber(forms.gettext(stonesTextbox))) end, 140, controlPosY, 100, 20)
+-- stonesLockCheckbox = forms.pictureBox(mainWindow, 250, controlPosY, 25, 25)
+stonesLockCheckbox = forms.checkbox(mainWindow, "Lock Stones", 250, controlPosY)
+
+controlPosY = controlPosY + 30
+controlPosX = controlPosX
+
+rescuedDropdown = forms.dropdown(mainWindow, {"0", "1", "2", "3", "4", "5", "6"}, 120, controlPosY, 30, 10)
+rescuedButton = forms.button(mainWindow, "Apply Rescued", function() return setHealth(tonumber(forms.gettext(healthDropdown))) end, 150, controlPosY, 90, 20)
+
+controlPosY = controlPosY + 30
+controlPosX = controlPosX
+
+invincibleCheckbox = forms.checkbox(mainWindow, "Invincible", 60, controlPosY)
+
+controlPosY = controlPosY + 30
+controlPosX = controlPosX
+
+-- killPlanesCheckbox = forms.checkbox(mainWindow, "No Kill Planes", 60, controlPosY)
+
+-- controlPosY = controlPosY + 30
+-- controlPosX = controlPosX
+
+-- TODO is there really no way to have this checked by default in Bizhawk's "forms" system?
+-- hudCheckbox = forms.pictureBox(mainWindow, 250, controlPosY, 25, 25)
+hudCheckbox = forms.checkbox(mainWindow, "In-game HUD", 60, controlPosY)
+
+controlPosY = controlPosY + 40
+controlPosX = controlPosX
+
+-- hudCheckbox = forms.pictureBox(mainWindow, 250, controlPosY, 25, 25)
+consoleLoggingCheckbox = forms.checkbox(mainWindow, "Console logging", 60, controlPosY)
+
+controlPosY = controlPosY + 30
+controlPosX = controlPosX
+
+--customAddressTextbox = forms.textbox(mainWindow, "custom", 100, 20, "", 60, 150)
+
+bgCanvas = forms.pictureBox(mainWindow, 0, 0, 640, 480)
+forms.drawImage(bgCanvas, "img/uibg2.png", 0, 0, 640, 480)
+
+displayStatus = forms.pictureBox(mainWindow, 0, 0, 640, 480)
+
+--forms.setDefaultBackgroundColor(displayStatus, "gray")
+forms.setDefaultTextBackground(displayStatus, "transparent")
+-- forms.setDefaultTextBackground(displayStatus, 0xFFF8E8A8)
+forms.setDefaultForegroundColor(displayStatus, 0xFF380000)
+defaultBGColor = 0xFFF8E8A8
+defaultTextColor = 0x99FFFFFF
+-- defaultTextColor = 0xFF380000
+
+
+
+-- Callbacks
+
+function wroteVision()
+	readValuesFromMemory()
+	console.log("Current vision set to " .. split .. " by instruction at " .. instructionPointer)
+end
+
+function wroteStones()
+	readValuesFromMemory()
+	console.log("Dream stones set to " .. stones .. " by instruction at " .. instructionPointer)
+end
+
+function wroteHealth()
+	readValuesFromMemory()
+	console.log("Health set to " .. health .. " by instruction at " .. instructionPointer)
+end
+
+function wroteLives()
+	readValuesFromMemory()
+	console.log("Lives set to " .. lives .. " by instruction at " .. instructionPointer)
+end
+
+function wrotePlane()
+	readValuesFromMemory()
+	console.log("Active plane set to " .. planePtr .. " by instruction at " .. instructionPointer)
+end
+
+function wrotePlaneSegment()
+	readValuesFromMemory()
+	console.log("Current plane segment set to " .. planeSegment .. " by instruction at " .. instructionPointer)
+end
+
+function wroteStatus1()
+	readValuesFromMemory()
+	console.log("Klonoa status set to " .. klonoaState .. " by instruction at " .. instructionPointer)
+end
+
+function wroteLedgePhysics()
+	readValuesFromMemory()
+	console.log("Ledge physics enabled by instruction at " .. instructionPointer)
+end
+
+function iFrames()
+	readValuesFromMemory()
+	console.log("Invincibility frames set to " .. " by instruction at " .. instructionPointer)
+end
+
+-- function readHealth()
+  -- console.log("Read health value.")
+-- end
+
+visionCallback = -1
+stonesCallback = -1
+planeCallback = -1
+planeSegmentCallback = -1
+livesCallback = -1
+healthCallback = -1
+
+callBacksEnabled = false
+
+function registerCallbacks()
+	-- I'm not sure why Bizhawk insists on the 0x80000000 prefix for these callbacks but nowhere else, but it's kind of annoying; be careful of this if you're making changes to the script
+	stonesCallback = event.onmemorywrite(wroteStones, 0x80000000 + stonesAddr)
+	planeCallback = event.onmemorywrite(wrotePlane, 0x80000000 + planePtrAddr)
+	livesCallback = event.onmemorywrite(wroteLives, 0x80000000 + livesAddr)
+	healthCallback = event.onmemorywrite(wroteHealth, 0x80000000 + healthAddr)
+	planeSegmentCallback = event.onmemorywrite(wrotePlaneSegment, 0x80000000 + planeSegmentAddr)
+	callBacksEnabled = true
+end
+
+function unregisterCallbacks()
+	-- I'm not sure why Bizhawk insists on the 0x80000000 prefix for these callbacks but nowhere else, but it's kind of annoying; be careful of this if you're making changes to the script
+	event.unregisterbyid(stonesCallback)
+	event.unregisterbyid(planeCallback)
+	event.unregisterbyid(livesCallback)
+	event.unregisterbyid(healthCallback)
+	event.unregisterbyid(planeSegmentCallback)
+	callBacksEnabled = false
+end
+
+-- TODO a lot of these values get "changed" to the same value repeatedly; "onmemorywrite" is probably not ideal in this case
+-- event.onmemorywrite(wroteVision, 0x80000000 + visionAddr)
+-- event.onmemorywrite(wroteStatus1, 0x80000000 + klonoaStateAddr)
+-- event.onmemorywrite(wroteStones, 0x80000000 + stonesAddr)
+-- event.onmemorywrite(wroteStones, 0x80000000 + stonesAddr)
+-- TODO callback for when vertices of current plane segment move
+
+
+
+-- Main logic
+
+while true do
+	-- forms.clear(displayStatus, 0xFFF8E8A8)
+	--forms.clear(displayStatus, "transparent")
+	--forms.clear(bgCanvas, 0xFFF8E8A8)
+	--forms.drawImage(bgCanvas, "img/uibg2.png", 0, 0)
+	
+	-- TODO display address, values for current plane segment
+	
+	--"Note: clicking the '?' button will make my comments/explanation appear in the Lua Console's \"output\" pane. Info may be incomplete or incorrect."
+	-- TODO check if dynamically allocated addresses only change between visions (e.g. when memory is reset/loaded from disc)
+	-- TODO lives/stones glitch seems to be related to playing the animation
+
+	readValuesFromMemory()
 	
 	-- Handle keyboard toggle for override camera control
 	local currentInput = input.get()
 
 	manualCam = forms.ischecked(manualCamCheckbox)
-	frozenHealth = forms.ischecked(healthFreezeCheckbox)
-	frozenLives = forms.ischecked(livesFreezeCheckbox)
-	frozenStones = forms.ischecked(stonesFreezeCheckbox)
-	frozenPosition = forms.ischecked(freezePositionCheckbox)
+	frozenHealth = forms.ischecked(healthLockCheckbox)
+	frozenLives = forms.ischecked(livesLockCheckbox)
+	frozenStones = forms.ischecked(stonesLockCheckbox)
+	frozenPosition = forms.ischecked(LockPositionCheckbox)
+	invincible = forms.ischecked(invincibleCheckbox)
+	noKillPlanes = forms.ischecked(killPlanesCheckbox)
+	inGameHUD = forms.ischecked(hudCheckbox)
+	
+	if forms.ischecked(consoleLoggingCheckbox) and not callBacksEnabled then
+		registerCallbacks()
+	elseif not forms.ischecked(consoleLoggingCheckbox) and callBacksEnabled then
+		unregisterCallbacks()
+	end
+	
 	lastInput = currentInput
 
 	-- Handle keyboard camera manipulation when overriden
@@ -258,7 +453,7 @@ while true do
 	
 	-- Overwrite game's camera memory
 	if manualCam then
-		forms.drawText(displayStatus, 0, 180, "MANUAL CAMERA CONTROL ON (Incomplete! Be careful.)", "red", null, 24, "Times New Roman", "bold")
+		-- gui.drawText(40, 180, "MANUAL CAMERA CONTROL ON (Incomplete! Be careful.)", "red", null, 12, "Times New Roman", hudFontStyle)
 		--memory.write_s32_le(klonoaYAddr, cam1)
 		memory.write_s32_le(cameraAddr1, lastCam2)
 		memory.write_s32_le(cameraAddr2, lastCam3)
@@ -292,19 +487,14 @@ while true do
 		stonesChanged = false
 	end
 	
-	
-	-- Display camera info
-	--forms.drawText(displayStatus, 0, 180, "Cam 1: " .. cam1, "red")
-	forms.drawText(displayStatus, 0, 200, "Cam 2: " .. cam2, "green", null, 24, "Times New Roman", "bold")
-	forms.drawText(displayStatus, 0, 220, "Cam 3: " .. cam3, "blue", null, 24, "Times New Roman", "bold")
-	--forms.drawAxis(displayStatus, 100, 400, 20) 
-	
-	-- Display split info
-	forms.drawText(displayStatus, 0, 300, "Vision: " .. split, defaultTextColor, null, 24, "Times New Roman", "bold")
-	--forms.drawText(displayStatus, 0, 320, "(internal vision counter value: " .. visionCounter .. ")", "white")
-	
+	-- Invincibility by overwriting iFrames counter
+	if invincible then
+		memory.write_s16_le(iFramesAddr, 1)
+		stonesChanged = false
+	end
+		
 	-- Mouse interactivity
-	if input.getmouse()["Left"] then
+	if input.getmouse()["Left"] and forms.gettext(mouseDropdown) == "1. Move Klonoa (buggy)" then
 		klonoaX = lastKlonoaX + mouseDeltaX*50000
 		klonoaY = lastKlonoaY + mouseDeltaY*50000
 		
@@ -320,18 +510,8 @@ while true do
 			dragStartY = mouseY
 			dragging = true
 		end
-	else
-		if dragging then
-			-- Apply change in lives from dragging
-			--lives = lives + draggedLives
-			draggedLives = 0
-			dragging = false
-			dragDeltaX = 0
-			dragDeltaY = 0
-			--livesChanged = true
-		end
 	end	
-	if input.getmouse()["Right"] then
+	if input.getmouse()["Left"] and forms.gettext(mouseDropdown) == "2. Adjust Camera (buggy/incompete)" then
 		-- Overwrite camera
 		cam2 = lastCam2 + mouseDeltaX*50000
 		cam3 = lastCam3 + mouseDeltaY*50000
@@ -342,27 +522,70 @@ while true do
 		-- Disable timer for fall death
 		memory.write_s32_le(fallDeathTimeAddr, 0)
 	end
-	--if dragDeltaY > 20 then
-	--	draggedLives = dragDeltaY/20
-	--end
-	
+
+	-- Save values to use for next frame in "locked" mode
 	lastMouseX = input.getmouse()["X"]
 	lastMouseY = input.getmouse()["Y"]
 	lastKlonoaX = klonoaX
 	lastKlonoaY = klonoaY
 	
-	--lastCam1 = cam1
 	lastCam2 = cam2
 	lastCam3 = cam3
 	
-	-- Display Klonoa info
-	forms.drawText(displayStatus, 0, 360, "Klonoa status: " .. klonoaState, 0x66380000, null, 24, "Times New Roman", "bold")
-	forms.drawText(displayStatus, 0, 360, "Klonoa status: " .. klonoaState, defaultTextColor, null, 24, "Times New Roman", "bold")
+	
+	-- HUD
+	if inGameHUD then
+		hudY = 3
+		hudX = 17
+		hudFontSize = 11
+		hudFontStyle = "regular"
+		
+		-- Display split info
+		gui.drawText(hudX, hudY, "Vision: " .. split, defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
+		
+		hudY = hudY + hudFontSize - 1
+		
+		-- Display Klonoa info
+		gui.drawText(hudX, hudY, "Klonoa status: " .. klonoaState, defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
+		
+		hudY = hudY + hudFontSize + 2
 
-	if tonumber(iFrames) > 0 then
-		forms.drawText(displayStatus, 0, 380, "Invincibility frames: " .. iFrames, "red")
+		if tonumber(iFrames) > 0 then
+			gui.drawText(hudX, hudY, "Invincibility frames: " .. iFrames, "red", null, hudFontSize, "Times New Roman", hudFontStyle)
+		end
+		
+		hudY = hudY + hudFontSize - 1
+		
+		if tonumber(ledgePhysics) > 0 then
+			gui.drawText(hudX, hudY, "Ledge physics frames: " .. ledgePhysics, "green", null, hudFontSize, "Times New Roman", hudFontStyle)
+		end
+		
+		hudY = hudY + hudFontSize + 2
+		
+		-- Note: broken into two drawTexts to avoid distracting twitchy font kerning as numbers change
+		gui.drawText(hudX, hudY, "Plane pointer: ", defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
+		gui.drawText(hudX + 75, hudY, 	planePtrAddr, defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
+		
+		hudY = hudY + hudFontSize - 1
+		
+		gui.drawText(hudX, hudY, "Plane segment: ", defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
+		gui.drawText(hudX + 75, hudY, planeSegment, defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
+		
+		hudY = hudY + hudFontSize - 1
+		
+		gui.drawText(hudX, hudY, "X on segment: ", defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
+		gui.drawText(hudX + 75, hudY, planeX, defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
+		
+		hudY = hudY + hudFontSize - 1
+		
+		gui.drawText(hudX, hudY, cutsceneState, defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
+		
+		hudY = hudY + hudFontSize - 1
+		
+		--forms.refresh(displayStatus)
+		--forms.refresh(bgCanvas)
+		
+		-- Fake clear
+		--gui.drawText(hudX, hudY, "Klonoa status: " .. klonoaState, defaultBGColor, null, hudFontSize, "Times New Roman", hudFontStyle)
 	end
-	forms.drawText(displayStatus, 0, 440, cutsceneState, defaultTextColor, null, 24, "Times New Roman")
-	forms.refresh(displayStatus)
-	--forms.refresh(bgCanvas)
 end
