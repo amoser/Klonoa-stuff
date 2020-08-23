@@ -1,5 +1,27 @@
 # Klonoa-stuff
 
+A Lua script meant to aid exploration of Klonoa: Door To Phantomile
+
+## Requirements
+
+-US version of Klonoa: Door To Phantomile
+-Compatible PSX BIOS
+-BizHawk emulator (tested on 2.4.2)
+
+## Installing and Running
+
+1. Click the green "code" button toward the top-right of this page
+2. Choose "Download Zip"
+3. Extract the files to some location
+4. Start the game in BizHawk
+5. Once the game is running, open the Lua console from the "Tools" menu
+6. From within the Lua console, choose "Open Script..." from the "Script" menu
+7. Navigate to where you extracted the files and select "Klonoa - Door to Phantomile (USA).lua"
+
+## Features
+
+This tool has two main functions: a window with options for easily manipulating various aspects of the game state, and an in-game display that displays additional information about the game state.
+
 TODO x position along entire path, not just segment?
 
 This document will never be complete, but I'd like for it to be as accurate as possible. There are surely a lot of mistakes at the moment, though, so let me know if you find any!
