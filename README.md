@@ -20,7 +20,7 @@ A Lua script meant to aid exploration of Klonoa: Door To Phantomile
 
 ## Features
 
-This tool has two main functions: a window with options for easily manipulating various aspects of the game state, and an in-game display that displays additional information about the game state.
+This tool has two main components: a window with options for easily manipulating various aspects of the game state, and an in-game display that displays additional information about the game state.
 
 TODO x position along entire path, not just segment?
 
