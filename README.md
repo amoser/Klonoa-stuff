@@ -28,27 +28,27 @@ This tool has two main components: a window with options for easily manipulating
 
 Enabling the in-game HUD displays various pieces of information. Currently this includes:
 
-1. Current vision number
+1. *Current vision number*
 
-2. A general "Klonoa status" value that tracks certain states (double jump, flying, etc.)
+2. *A general "Klonoa status" value that tracks certain states (double jump, flying, etc.)*
 
-There are additional status values that are currently not labeled.
+      There are additional status values that are currently not labeled.
 
-3. "Counter status" (if non-zero)
+3. *"Counter status" (if non-zero)*
 
-A counter that the game uses for tracking certain temporary effects, e.g. invincibility frames after taking damage.
+      A counter that the game uses for tracking certain temporary effects, e.g. invincibility frames after taking damage.
 
-4. "Ledge physics" (if non-zero)
+4. *"Ledge physics" (if non-zero)*
 
-After stepping off a ledge, there is a five-frame window during which Klonoa's physics are different from usual. The most noticeable effect is that Klonoa is able to jump during this time despite not touching the ground
+      After stepping off a ledge, there is a five-frame window during which Klonoa's physics are different from usual. The most noticeable effect is that Klonoa is able to jump during this time despite not touching the ground
 
-5. "Plane pointer," "Plane segment," and "X on segment"
+5. *"Plane pointer," "Plane segment," and "X on segment"*
 
-See "Level/Geometry" below for an explanation of what these values represent
+      See "Level/Geometry" below for an explanation of what these values represent
 
-6. Internal values for lives, health, and dream stones
+6. *Internal values for lives, health, and dream stones*
 
-This is potentially useful for understanding situations in which the game fails to display these values properly.
+      This is potentially useful for understanding situations in which the game fails to display these values properly.
 
 TODO x position along entire path, not just segment?
 
