@@ -4,8 +4,10 @@ A Lua script meant to aid exploration of Klonoa: Door To Phantomile
 
 ## Requirements
 
--US version of Klonoa: Door To Phantomile
+-US version of Klonoa: Door To Phantomile (I am planning to support all PSX versions; if anyone is able to test this on other versions, please let me know what results you get)
+
 -Compatible PSX BIOS
+
 -BizHawk emulator (tested on 2.4.2)
 
 ## Installing and Running
@@ -22,6 +24,32 @@ A Lua script meant to aid exploration of Klonoa: Door To Phantomile
 
 This tool has two main components: a window with options for easily manipulating various aspects of the game state, and an in-game display that displays additional information about the game state.
 
+## HUD
+
+Enabling the in-game HUD displays various pieces of information. Currently this includes:
+
+1. Current vision number
+
+2. A general "Klonoa status" value that tracks certain states (double jump, flying, etc.)
+
+There are additional status values that are currently not labeled.
+
+3. "Counter status" (if non-zero)
+
+A counter that the game uses for tracking certain temporary effects, e.g. invincibility frames after taking damage.
+
+4. "Ledge physics" (if non-zero)
+
+After stepping off a ledge, there is a five-frame window during which Klonoa's physics are different from usual. The most noticeable effect is that Klonoa is able to jump during this time despite not touching the ground
+
+5. "Plane pointer," "Plane segment," and "X on segment"
+
+See "Level/Geometry" below for an explanation of what these values represent
+
+6. Internal values for lives, health, and dream stones
+
+This is potentially useful for understanding situations in which the game fails to display these values properly.
+
 TODO x position along entire path, not just segment?
 
 This document will never be complete, but I'd like for it to be as accurate as possible. There are surely a lot of mistakes at the moment, though, so let me know if you find any!
@@ -32,13 +60,17 @@ This document will never be complete, but I'd like for it to be as accurate as p
 
 Each room is broken up into multiple "planes," essentially paths that Klonoa can run along. In general, any situation in which Klonoa can choose between two or more different paths requires there to be at least two planes.
 
-[example]
+![Branching planes in 2-1](https://raw.githubusercontent.com/amoser/Klonoa-stuff/master/img/branching%20planes.png)
+
+Above is a fairly straightforward example from Vision 1-2. Note that the upper plane continues across the gap.
 
 Each plane itself is made up of several smaller segments. Each of these segments is perfectly straight (doesn't bend or curve), just like the polygonal segments of the planes represented as 3D geometry onscreen. 
 
-In fact, I'm almost certain that the polygons that make up the path displayed onscreen are a one-to-one representation of the plane segments. This could ultimately be confirmed by locating the ROM data that represents the plane segments and demonstrating that modifying it affects both the rendered 3D geometry as well as the game logic/physics in a consistent way. That's a major goal for a future version of this tool.
+In general, polygons that make up the path displayed onscreen correspond to plane segments. 
 
-[example]
+![Plane segments in 1-1](https://raw.githubusercontent.com/amoser/Klonoa-stuff/master/img/plane%20segments.png)
+
+Above is a plane in 1-1 with each segment labeled. Interestingly, the split between segment 17 and 18 does _not_ fall on a polygon edge. In this case it appears that the segment transition might be used to trigger a change in camera angle, but in other cases segments are divided for seemingly no reason.
 
 Each plane has an associated memory address that points to a set of values. This is presumably the beginning of an array of all of the segments which make up that plane. Modifying these values DOES change how Klonoa travels along those segments, but unfortunately the changes are not represented in the 3D geometry.
 
