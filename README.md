@@ -1,6 +1,10 @@
 # Klonoa-stuff
 
-A Lua script meant to aid exploration of Klonoa: Door To Phantomile
+## Very Unfinished Klonoa Debug Tool
+
+A Lua script meant to aid exploration of Klonoa: Door To Phantomile. 
+
+**Note: "Very unfinished" is probably an understatement. It can definitely crash the game and just behave super unpredictably**
 
 ### Requirements
 
@@ -67,6 +71,8 @@ Enabling the in-game HUD displays various pieces of information. Currently this 
 **TODO actually document any of these features**
 
 This window is used for changing various aspects of the game state, with the aim of making it easier to explore the game by doing things that are impossible in the original game.
+
+**Note: click+drag functionality for moving Klonoa temporarily disables the kill timer for when Klonoa falls out of bounds, but _not_ the kill planes that are deliberately placed around a level. This means it's pretty easy to die instantly to a "fall" death when trying to move around in the air.**
 
 Note that "locking" values currently works a bit differently than freezing memory the usual way in Bizhawk. Freezing memory prevents the value from changing at all, whereas "locking" resets the value once every frame. This means that the value _is_ possible to change as much as it wants within the span of a single frame. In most cases here, there doesn't seem to be a significant difference.
 
