@@ -1,8 +1,15 @@
 -- TODO
+-- Add explanation of click+drag to readme
+
 -- Figure out plane structure
+-- --Use onmemoryread to see when we hit certain sections
+
 -- Locate enemies (and find onscreen position after GTE transformation)
 -- Figure out models (recalling that setting '7's to other values appeard to modify seventh vertex)
 
+-- 0x800BE670 == KAKE?
+
+-- 801e0c04
 
 
 -- Const locations of various game-relevant information
@@ -37,23 +44,23 @@ planeSegmentAddr = 0x0BF028
 -- Tables for interpreting various raw memory values
 
 vision = {}
-vision[0] = "1-1"
-vision[1] = "1-2" 
+vision[0] = "Vision 1-1"
+vision[1] = "Vision 1-2" 
 vision[2] = "Rongo Lango"
-vision[3] = "2-1"
-vision[4] = "2-2"
+vision[3] = "Vision 2-1"
+vision[4] = "Vision 2-2"
 vision[5] = "Pamela"
-vision[6] = "3-1"
-vision[7] = "3-2"
+vision[6] = "Vision 3-1"
+vision[7] = "Vision 3-2"
 vision[8] = "Gelg Bolm"
-vision[9] = "4-2"
-vision[10] = "4-3"
+vision[9] = "Vision 4-2"
+vision[10] = "Vision 4-3"
 vision[11] = "Baladium"
-vision[12] = "5-1"
-vision[13] = "5-2"
+vision[12] = "Vision 5-1"
+vision[13] = "Vision 5-2"
 vision[14] = "Joka"
-vision[15] = "6-1"
-vision[16] = "6-2"
+vision[15] = "Vision 6-1"
+vision[16] = "Vision 6-2"
 vision[17] = "Nahatomb"
 
 cutscenes = {}
@@ -82,6 +89,13 @@ enemyTypes[11] = "Teton but maybe not???"
 enemyTypes[13] = "Rolling red shell guys"
 enemyTypes[19] = "Yellow springy guys"
 enemyTypes[23] = "Pink shooty guy"
+
+planes = {}
+planes[0x801757d0] = "3-1 Gondola"
+planes[0x801705b8] = "5-1 Moving Platform type 1"
+planes[0x80172330] = "5-1 Moving Platform type 2"
+planes[0x80173838] = "5-1 Moving Platform type 3"
+
 
 split = "Waiting to start..."
 klonoaState = states[0]
@@ -117,9 +131,8 @@ healthChanged = false
 lives = 3
 frozenLives = false
 livesChanged = false
-draggedLives = 0
 
-stones = 3
+stones = 0
 frozenStones = false
 stonesChanged = false
 
@@ -214,11 +227,14 @@ function readValuesFromMemory()
 		
 	iFrames = memory.read_s16_le(iFramesAddr)
 	ledgePhysics = memory.read_s16_le(ledgePhysicsAddr)
-	
-	planePtr = string.format("%x", memory.read_s32_le(planePtrAddr))
-	-- planePtr = memory.read_s32_le(planePtrAddr)
-	planeSegment = memory.read_s32_le(planeSegmentAddr)
+
+	planePtr = memory.read_u32_le(planePtrAddr)
+	planeSegment = memory.read_s16_le(planeSegmentAddr)
 	planeX = memory.read_s32_le(planeXposAddr)
+	
+	stones = memory.read_s16_le(stonesAddr)
+	lives = memory.read_s16_le(livesAddr)
+	health = memory.read_s32_le(healthAddr)
 end
 
 
@@ -276,12 +292,19 @@ controlPosX = controlPosX
 rescuedDropdown = forms.dropdown(mainWindow, {"0", "1", "2", "3", "4", "5", "6"}, 120, controlPosY, 30, 10)
 rescuedButton = forms.button(mainWindow, "Apply Rescued", function() return setHealth(tonumber(forms.gettext(healthDropdown))) end, 150, controlPosY, 90, 20)
 
+controlPosY = controlPosY + 40
+controlPosX = controlPosX
+
+planeTextbox = forms.textbox(mainWindow, "3", 20, 20, "", 120, controlPosY)
+planeButton  = forms.button(mainWindow, "Set Plane Pointer", function() return setHealth(tonumber(forms.gettext(healthDropdown))) end, 150, controlPosY, 90, 20)
+planeCheckbox = forms.checkbox(mainWindow, "Lock Plane", 250, controlPosY)
+
 controlPosY = controlPosY + 30
 controlPosX = controlPosX
 
 invincibleCheckbox = forms.checkbox(mainWindow, "Invincible", 60, controlPosY)
 
-controlPosY = controlPosY + 30
+controlPosY = controlPosY + 40
 controlPosX = controlPosX
 
 -- killPlanesCheckbox = forms.checkbox(mainWindow, "No Kill Planes", 60, controlPosY)
@@ -293,7 +316,7 @@ controlPosX = controlPosX
 -- hudCheckbox = forms.pictureBox(mainWindow, 250, controlPosY, 25, 25)
 hudCheckbox = forms.checkbox(mainWindow, "In-game HUD", 60, controlPosY)
 
-controlPosY = controlPosY + 40
+controlPosY = controlPosY + 30
 controlPosX = controlPosX
 
 -- hudCheckbox = forms.pictureBox(mainWindow, 250, controlPosY, 25, 25)
@@ -314,7 +337,7 @@ forms.setDefaultTextBackground(displayStatus, "transparent")
 -- forms.setDefaultTextBackground(displayStatus, 0xFFF8E8A8)
 forms.setDefaultForegroundColor(displayStatus, 0xFF380000)
 defaultBGColor = 0xFFF8E8A8
-defaultTextColor = 0x99FFFFFF
+defaultTextColor = 0xBBFFFFFF
 -- defaultTextColor = 0xFF380000
 
 
@@ -411,17 +434,6 @@ end
 -- Main logic
 
 while true do
-	-- forms.clear(displayStatus, 0xFFF8E8A8)
-	--forms.clear(displayStatus, "transparent")
-	--forms.clear(bgCanvas, 0xFFF8E8A8)
-	--forms.drawImage(bgCanvas, "img/uibg2.png", 0, 0)
-	
-	-- TODO display address, values for current plane segment
-	
-	--"Note: clicking the '?' button will make my comments/explanation appear in the Lua Console's \"output\" pane. Info may be incomplete or incorrect."
-	-- TODO check if dynamically allocated addresses only change between visions (e.g. when memory is reset/loaded from disc)
-	-- TODO lives/stones glitch seems to be related to playing the animation
-
 	readValuesFromMemory()
 	
 	-- Handle keyboard toggle for override camera control
@@ -433,7 +445,7 @@ while true do
 	frozenStones = forms.ischecked(stonesLockCheckbox)
 	frozenPosition = forms.ischecked(LockPositionCheckbox)
 	invincible = forms.ischecked(invincibleCheckbox)
-	noKillPlanes = forms.ischecked(killPlanesCheckbox)
+	-- noKillPlanes = forms.ischecked(killPlanesCheckbox)
 	inGameHUD = forms.ischecked(hudCheckbox)
 	
 	if forms.ischecked(consoleLoggingCheckbox) and not callBacksEnabled then
@@ -443,11 +455,6 @@ while true do
 	end
 	
 	lastInput = currentInput
-
-	-- Handle keyboard camera manipulation when overriden
-	-- if input.get()["E"] == true then
-		-- cam1 = cam1 - 50000
-	-- end
 
 	emu.frameadvance();
 	
@@ -478,7 +485,7 @@ while true do
 		
 	-- Overwrite life counter
 	if frozenLives or livesChanged then
-		memory.write_s32_le(livesAddr, lives + draggedLives)
+		memory.write_s32_le(livesAddr, lives)
 		livesChanged = false
 	end
 	
@@ -543,13 +550,40 @@ while true do
 	
 	-- HUD
 	if inGameHUD then
+		hudFontSize = 11
+		hudFontStyle = "bold"
+		
+		if lives < 10 then
+			hudX = 78
+		else
+			hudX = 74
+		end
+		hudY = 187
+		
+		-- Display Lives
+		gui.drawText(hudX, hudY, lives, defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
+
+		hudX = 165
+		
+		-- Display Health
+		gui.drawText(hudX, hudY, health, defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
+		
+		if stones < 10 then
+			hudX = 302
+		else
+			hudX = 298
+		end
+		
+		-- Display Stones
+		gui.drawText(hudX, hudY, stones, defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
+
+		hudFontStyle = "regular"
+
 		hudY = 3
 		hudX = 17
-		hudFontSize = 11
-		hudFontStyle = "regular"
 		
 		-- Display split info
-		gui.drawText(hudX, hudY, "Vision: " .. split, defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
+		gui.drawText(hudX, hudY, split, defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
 		
 		hudY = hudY + hudFontSize - 1
 		
@@ -559,7 +593,7 @@ while true do
 		hudY = hudY + hudFontSize + 2
 
 		if tonumber(iFrames) > 0 then
-			gui.drawText(hudX, hudY, "Invincibility frames: " .. iFrames, "red", null, hudFontSize, "Times New Roman", hudFontStyle)
+			gui.drawText(hudX, hudY, "Counter status: " .. iFrames, "red", null, hudFontSize, "Times New Roman", hudFontStyle)
 		end
 		
 		hudY = hudY + hudFontSize - 1
@@ -571,17 +605,30 @@ while true do
 		hudY = hudY + hudFontSize + 2
 		
 		-- Note: broken into two drawTexts to avoid distracting twitchy font kerning as numbers change
+		hudFontStyle = "regular"
 		gui.drawText(hudX, hudY, "Plane pointer: ", defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
-		gui.drawText(hudX + 75, hudY, planePtr, defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
+		hudFontStyle = "bold"
+		
+		planeText = string.format("%x", planePtr)
+		
+		if not (planes[tonumber(planePtr)] == nil) then
+			gui.drawText(hudX + 75, hudY, planeText .. " (" .. planes[tonumber(planePtr)] .. ")", defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
+		else
+			gui.drawText(hudX + 75, hudY, planeText, defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
+		end
 		
 		hudY = hudY + hudFontSize - 1
 		
+		hudFontStyle = "regular"
 		gui.drawText(hudX, hudY, "Plane segment: ", defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
+		hudFontStyle = "bold"
 		gui.drawText(hudX + 75, hudY, planeSegment, defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
 		
 		hudY = hudY + hudFontSize - 1
 		
+		hudFontStyle = "regular"
 		gui.drawText(hudX, hudY, "X on segment: ", defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
+		hudFontStyle = "bold"
 		gui.drawText(hudX + 75, hudY, planeX, defaultTextColor, null, hudFontSize, "Times New Roman", hudFontStyle)
 		
 		hudY = hudY + hudFontSize - 1
@@ -597,3 +644,4 @@ while true do
 		--gui.drawText(hudX, hudY, "Klonoa status: " .. klonoaState, defaultBGColor, null, hudFontSize, "Times New Roman", hudFontStyle)
 	end
 end
+
