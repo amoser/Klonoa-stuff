@@ -34,25 +34,27 @@ This tool has two main components: a window with options for easily manipulating
 
 Enabling the in-game HUD displays various pieces of information. Currently this includes:
 
-1. *Current vision number*
+1. **Current vision number**
+      
+      Not super useful yet. Updates as soon as Klonoa is able to move when starting a vision. Could potentially be modified to create an auto-splitter for LiveSplit, or something.
 
-2. *A general "Klonoa status" value that tracks certain states (double jump, flying, etc.)*
+2. **"Klonoa status"**
 
-      Some of the possible states are identified, but there are a lot of other status values that are currently not labeled. I have no idea why facing towards the camera has a unique value. It made me suspect that the status is actually be a two-byte (half word) value rather than a 4-byte, with the "facing forward" being part of a different variable, but the presence of clearly-intentional values that take up all four bytes (e.g. 0x43434343) seems to rule this out.
+      This value tracks certain states, such as double jump, flying, etc. Some of the possible states are identified, but there are a lot of other status values that are currently not labeled. I have no idea why facing towards the camera has a unique value. It made me suspect that the status is actually be a two-byte (half word) value rather than a 4-byte, with the "facing forward" being part of a different variable, but the presence of clearly-intentional values that take up all four bytes (e.g. 0x43434343) seems to rule this out.
 
-3. *"Counter status" (if non-zero)*
+3. **"Counter status" (if non-zero)**
 
       A counter that the game uses for tracking certain temporary effects, e.g. invincibility frames after taking damage. Unlike the above "status" value, this _is_ a two-byte value; stored next to the "ledge physics" value. Not fully documented/understood.
 
-4. *"Ledge physics" (if non-zero)*
+4. **"Ledge physics" (if non-zero)**
 
       After stepping off a ledge, there is a five-frame window during which Klonoa's physics are different from usual. The most noticeable effect is that Klonoa is able to jump during this time despite not touching the ground. The value counts up from 0 to 5; if you see the value "5" remaining onscreen during a jump, this means you jumped on the last possible frame. This is also a two-byte value.
 
-5. *"Plane pointer," "Plane segment," and "X on segment"*
+5. **"Plane pointer," "Plane segment," and "X on segment"**
 
       See "Level/Geometry" in the general notes below for an explanation of what these values represent. In addition to displaying raw values, a couple of special/moving "planes" (currently limited to 3-1 gondolas and 5-1 moving platforms) are explicitly labeled as well. There are additional "special" planes, but they're not documented yet.
 
-6. *Internal values for lives, health, and dream stones*
+6. **Internal values for lives, health, and dream stones**
 
       This is potentially useful for understanding situations in which the game fails to display these values properly in its on-screen HUD.
 
@@ -60,7 +62,13 @@ Enabling the in-game HUD displays various pieces of information. Currently this 
 
 ### Control window
 
-*TODO*
+![Control window](https://raw.githubusercontent.com/amoser/Klonoa-stuff/master/img/debugwindow.PNG)
+
+**TODO actually document any of these features**
+
+This window is used for changing various aspects of the game state, with the aim of making it easier to explore the game by doing things that are impossible in the original game.
+
+Note that "locking" values currently works a bit differently than freezing memory the usual way in Bizhawk. Freezing memory prevents the value from changing at all, whereas "locking" resets the value once every frame. This means that the value _is_ possible to change as much as it wants within the span of a single frame. In most cases here, there doesn't seem to be a significant difference.
 
 ## General Klonoa Notes
 
@@ -68,7 +76,7 @@ The remainder of this readme is an attempt to document as much information about
 
 ### Level/Geometry
 
-*TODO This section needs to be copy-edited for clarity/organization.*
+**TODO This section needs to be copy-edited for clarity/organization.**
 
 Each room is broken up into multiple "planes," essentially paths that Klonoa can run along. In general, any situation in which Klonoa can choose between two or more different paths requires there to be at least two planes.
 
@@ -103,9 +111,9 @@ Certain "planes" are re-used for certain types of "special" terrain. For example
 
 It's also worth observing how the plane pointer changes (or does not change) while Klonoa is in the air. In fact, the behavior is not consistent; in some situations, simply moving _above_ some geometry causes the pointer to change immediately. In others, the pointer does not update until Klonoa actually lands on a new plane.
 
-*TODO Video example*
+**TODO Video example**
 
-*TODO* Confirmation/video showing that this accounts for the weird behavior when moving directly from a gondola to a crate; landing on the crate might position Klonoa relative to the plane he is "on," which would fall apart if he's not "on" the plane directly under the box.
+*TODO Confirmation/video showing that this accounts for the weird behavior when moving directly from a gondola to a crate; landing on the crate might position Klonoa relative to the plane he is "on," which would fall apart if he's not "on" the plane directly under the box.*
 
 NOTE: There is a discrepency between how BizHawk represents memory addresses and how pointers are stored within the game's memory: BizHawk omits the first two digits '80' for addresses in the main RAM, since it is redundant (ALL main RAM is mapped to addresses beginning with 80). But BizHawk WON'T omit the 80 for pointers (memory addresses) stored within the games memory itself, because it has no way of knowing whether a given number actually reprsents a memory address or just a number that happens to start with '80'.
 This simply means that if you find a pointer in memory like "801757D0" and want to see what's located there using BizHawk, you'll want to search for "1757D0" instead.
@@ -118,7 +126,7 @@ The tool doesn't have any functionslity related to enemies yet. That said, the f
 
 If you are tremendously bored, you can usually do a RAM search for numbers corresponding to some enemies that you see on screen. Once you find an enemy, if you change its type to a different number on this list and break the enemy, it will often respawn as the new type. Or crash the game. Often both, in fact.
 
-*TODO Video example of changing flying moo in 1-1*
+**TODO Video example of changing flying moo in 1-1**
 
 0/1 = Moo
 
@@ -142,13 +150,7 @@ It's already a bit weird that internally this actually functions almost exactly 
 
 ### Other flags etc.
 
+**TODO**
+
 cutscenes = {}
 cutscenes[-2145386984] = "In cutscene"
-
-states = {}
-states[0] = "Neutral"
-states[6] = "Holding enemy" 
-states[1542] = "Flying" -- 0x606
-states[101058088] = "Double jump" -- 0x6060628
-states[438839593] = "Taking damage" -- 0x1A282929
-states[1128481603] = "---" -- 0x43434343
